@@ -1,4 +1,4 @@
-# app.py
+# app.py (UI versi dashboard layout seperti gambar dengan filter tanggal dan tooltip)
 
 import streamlit as st
 import pandas as pd
@@ -8,6 +8,39 @@ from io import BytesIO
 
 st.set_page_config(page_title="Dashboard Kinerja ASDP", layout="wide")
 
+# ---------- STYLE ----------
+st.markdown("""
+    <style>
+        .card {
+            background-color: #007bff;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            text-align: center;
+        }
+        .section-label {
+            background-color: #00bcd4;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-weight: bold;
+            border-radius: 0.3rem;
+            margin-bottom: 0.5rem;
+            display: inline-block;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# ---------- FORMAT ----------
+def format_number_custom(x):
+    if pd.isna(x):
+        return "-"
+    if x >= 1_000_000:
+        return f"{x/1_000_000:.1f} jt"
+    elif x >= 1_000:
+        return f"{x/1_000:.1f} rb"
+    else:
+        return f"{x:,.0f}"
+
 # ---------- LOAD DATA ----------
 def load_data(uploaded_file):
     try:
@@ -15,158 +48,84 @@ def load_data(uploaded_file):
         df_kinerja = pd.read_excel(xls, 'Kinerja_Keuangan')
         df_rasio = pd.read_excel(xls, 'Rasio_Keuangan')
         df_cashflow = pd.read_excel(xls, 'Cashflow_Forecast')
+        df_cashflow['Tanggal'] = pd.to_datetime(df_cashflow['Tanggal'])
         df_debt = pd.read_excel(xls, 'Profil_Hutang')
         return df_kinerja, df_rasio, df_cashflow, df_debt
     except Exception as e:
         st.error(f"Gagal membaca file: {e}")
         return None, None, None, None
 
-# ---------- FILTER ----------
-def apply_filter(df, tahun, bulan_list):
-    return df[(df['Tahun'] == tahun) & (df['Bulan'].isin(bulan_list))]
-
-# ---------- SCORING STRATEGI ----------
-def generate_rekomendasi(kinerja, rasio, cashflow):
-    skor = 0
-    if kinerja['Pendapatan'].mean() > 100000: skor += 1
-    if kinerja['Laba_Bersih'].mean() > 10000: skor += 1
-    if rasio['DSCR'].mean() >= 1.2: skor += 1
-    if rasio['Current_Ratio'].mean() >= 1.1: skor += 1
-    if rasio['DER'].mean() <= 1.5: skor += 1
-    if cashflow['Saldo_Akhir'].mean() > 0: skor += 1
-
-    if skor >= 5:
-        return "Strategi Ekspansi"
-    elif skor >= 3:
-        return "Strategi Efisiensi"
-    else:
-        return "Strategi Konservatif / Restrukturisasi"
-
-# ---------- HIGHLIGHT CELL ----------
-def highlight_rasio(val, threshold, reverse=False):
-    if reverse:
-        return 'background-color: red' if val > threshold else ''
-    else:
-        return 'background-color: red' if val < threshold else ''
-
-# ---------- FORMAT NUMBER ----------
-def format_number(x):
-    if isinstance(x, (int, float)):
-        if x == int(x):
-            return f"{int(x):,}"
-        else:
-            return f"{x:,.2f}"
-    return x
-
 # ---------- MAIN ----------
-st.title("📊 Dashboard Kinerja Keuangan ASDP")
+st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/ASDP_Indonesia_Ferry_Logo.svg/2560px-ASDP_Indonesia_Ferry_Logo.svg.png", width=120)
+st.markdown("<h2 style='margin-top: -1rem;'>DASHBOARD KINERJA</h2>", unsafe_allow_html=True)
 
-uploaded_file = st.sidebar.file_uploader("Upload file Excel", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload file Excel", type=["xlsx"])
+
 if uploaded_file:
     df_kinerja, df_rasio, df_cashflow, df_debt = load_data(uploaded_file)
 
     tahun_list = df_kinerja['Tahun'].unique()
     bulan_list = df_kinerja['Bulan'].unique()
+    tahun = st.selectbox("Pilih Tahun", sorted(tahun_list, reverse=True))
+    bulan_multi = st.multiselect("Pilih Bulan", bulan_list, default=bulan_list[:1])
 
-    tahun = st.sidebar.selectbox("Pilih Tahun", sorted(tahun_list, reverse=True))
-    bulan_multi = st.sidebar.multiselect("Pilih Bulan", bulan_list, default=bulan_list[:1])
+    df_filtered = df_kinerja[(df_kinerja['Tahun'] == tahun) & (df_kinerja['Bulan'].isin(bulan_multi))]
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-        "Ringkasan Kinerja", "Rasio Keuangan", "Cashflow Forecast",
-        "Profil Hutang", "Strategi", "Export"
-    ])
+    pendapatan = format_number_custom(df_filtered['Pendapatan'].sum())
+    ebitda = format_number_custom(df_filtered['EBITDA'].sum())
+    laba = format_number_custom(df_filtered['Laba_Bersih'].sum())
+    cash = format_number_custom(df_cashflow['Saldo_Akhir'].iloc[-1])
 
-    with tab1:
-        st.header("📈 Ringkasan Kinerja")
-        st.caption("*Seluruh nilai dalam Jutaan Rupiah*")
-        df_filtered = apply_filter(df_kinerja, tahun, bulan_multi)
-        df_display = df_filtered.copy()
-        for col in ['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']:
-            df_display[col] = df_display[col].apply(format_number)
-        st.dataframe(df_display)
-        colors = px.colors.qualitative.Set2
-        for i, col in enumerate(['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']):
-            fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
-                         color_discrete_sequence=[colors[i % len(colors)]], text=df_filtered[col].map(format_number))
-            fig.update_layout(height=300, margin=dict(t=30, b=20))
-            fig.update_traces(textposition='outside')
-            st.plotly_chart(fig, use_container_width=True)
+    # KPI CARDS
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(f"""<div class='card' title='Total pendapatan perusahaan dalam periode yang dipilih'>
+            <h5>Pendapatan</h5>
+            <h2>{pendapatan}</h2>
+            <small>YTD vs RKAP<br>FY vs RKAP</small></div>""", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""<div class='card' title='Laba operasional sebelum depresiasi dan pajak'>
+            <h5>EBITDA</h5>
+            <h2>{ebitda}</h2>
+            <small>YTD vs RKAP<br>FY vs RKAP</small></div>""", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""<div class='card' title='Laba bersih yang dihasilkan setelah biaya dan pajak'>
+            <h5>Laba</h5>
+            <h2>{laba}</h2>
+            <small>YTD vs RKAP<br>FY vs RKAP</small></div>""", unsafe_allow_html=True)
+    with col4:
+        st.markdown(f"""<div class='card' title='Total kas dan setara kas saat ini'>
+            <h5>Cash</h5>
+            <h2>{cash}</h2>
+            <small>YTD vs RKAP<br>FY vs RKAP</small></div>""", unsafe_allow_html=True)
 
-    with tab2:
-        st.header("📊 Rasio Keuangan")
-        df_filtered = apply_filter(df_rasio, tahun, bulan_multi)
+    # LIKUIDITAS
+    st.markdown("<div class='section-label'>Likuiditas</div>", unsafe_allow_html=True)
+    tgl_min = df_cashflow['Tanggal'].min()
+    tgl_max = df_cashflow['Tanggal'].max()
+    start, end = st.date_input("Filter Rentang Tanggal", [tgl_min, tgl_max], format="YYYY-MM-DD")
+    df_cash_filtered = df_cashflow[(df_cashflow['Tanggal'] >= pd.to_datetime(start)) & (df_cashflow['Tanggal'] <= pd.to_datetime(end))]
+    fig_cash = px.line(df_cash_filtered, x='Tanggal', y='Saldo_Akhir', title="Kas dan Setara Kas")
+    fig_cash.update_layout(height=300, showlegend=False)
+    st.plotly_chart(fig_cash, use_container_width=True)
 
-        styled_df = df_filtered.style\
-            .format({"DSCR": "{:.2f}", "Current_Ratio": "{:.2f}", "DER": "{:.2f}"})\
-            .applymap(lambda v: highlight_rasio(v, 1.2), subset=['DSCR'])\
-            .applymap(lambda v: highlight_rasio(v, 1.1), subset=['Current_Ratio'])\
-            .applymap(lambda v: highlight_rasio(v, 1.5, reverse=True), subset=['DER'])
+    # SOLVABILITAS
+    st.markdown("<div class='section-label'>Solvabilitas</div>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    df_r = df_rasio[(df_rasio['Tahun'] == tahun) & (df_rasio['Bulan'].isin(bulan_multi))]
+    with col1:
+        st.metric("DSCR", f"{df_r['DSCR'].mean():.2f}", help="Kemampuan membayar utang dari operasional")
+    with col2:
+        st.metric("DER", f"{df_r['DER'].mean():.2f}", help="Rasio hutang terhadap ekuitas")
+    with col3:
+        st.metric("Current Ratio", f"{df_r['Current_Ratio'].mean():.2f}", help="Likuiditas jangka pendek")
 
-        st.dataframe(styled_df)
-
-        for i, col in enumerate(['DSCR', 'Current_Ratio', 'DER']):
-            fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
-                         color='Bulan', color_discrete_sequence=[colors[i % len(colors)]],
-                         text=df_filtered[col].map(lambda x: f"{x:,.2f}"))
-            fig.update_layout(height=300, margin=dict(t=30, b=20))
-            fig.update_traces(textposition='outside')
-            st.plotly_chart(fig, use_container_width=True)
-
-    with tab3:
-        st.header("💰 Cashflow Forecast (2 Minggu)")
-        st.caption("*Seluruh nilai dalam Jutaan Rupiah*")
-        df_cashflow_fmt = df_cashflow.copy()
-        for col in ['Saldo_Awal', 'Pemasukan', 'Pengeluaran', 'Saldo_Akhir']:
-            df_cashflow_fmt[col] = df_cashflow_fmt[col].apply(format_number)
-        st.dataframe(df_cashflow_fmt)
-        fig = px.line(df_cashflow, x='Tanggal', y='Saldo_Akhir', title='Proyeksi Saldo Harian',
-                      color_discrete_sequence=['#0077b6'])
-        fig.update_layout(height=300, margin=dict(t=30, b=20))
-        st.plotly_chart(fig, use_container_width=True)
-
-    with tab4:
-        st.header("📄 Profil & Jatuh Tempo Hutang")
-        st.caption("*Seluruh nilai dalam Jutaan Rupiah*")
-        df_display_debt = df_debt.copy()
-        df_display_debt['Nilai_Pinjaman'] = df_display_debt['Nilai_Pinjaman'].apply(format_number)
-        st.dataframe(df_display_debt)
-        df_debt['Jatuh_Tempo'] = pd.to_datetime(df_debt['Jatuh_Tempo'])
-        df_gantt = df_debt.copy()
-        df_gantt['Start'] = datetime.today()
-        df_gantt['Finish'] = df_gantt['Jatuh_Tempo']
-        fig = px.timeline(df_gantt, x_start="Start", x_end="Finish", y="Nama_Pinjaman", color="Institusi",
-                          color_discrete_sequence=colors)
-        fig.update_yaxes(autorange="reversed")
-        fig.update_layout(height=400, margin=dict(t=30, b=20))
-        st.plotly_chart(fig, use_container_width=True)
-
-    with tab5:
-        st.header("📌 Rekomendasi Strategi Perusahaan")
-        df_k = apply_filter(df_kinerja, tahun, bulan_multi)
-        df_r = apply_filter(df_rasio, tahun, bulan_multi)
-        rekomendasi = generate_rekomendasi(df_k, df_r, df_cashflow)
-        st.success(f"Hasil Analisis: **{rekomendasi}**")
-
-    with tab6:
-        st.header("📄 Export Laporan")
-
-        def convert_df_to_excel(dfs: dict):
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                for name, df in dfs.items():
-                    df.to_excel(writer, index=False, sheet_name=name[:31])
-            return output.getvalue()
-
-        excel_data = convert_df_to_excel({
-            "Kinerja_Keuangan": df_kinerja,
-            "Rasio_Keuangan": df_rasio,
-            "Cashflow_Forecast": df_cashflow,
-            "Profil_Hutang": df_debt
-        })
-
-        st.download_button(
-            label="📂 Download Laporan Excel",
-            data=excel_data,
-            file_name=f"Laporan_Kinerja_{'_'.join(bulan_multi)}_{tahun}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    # PROFITABILITAS
+    st.markdown("<div class='section-label'>Profitabilitas</div>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Gross Profit Margin", "-", help="Margin kotor terhadap pendapatan")
+    with col2:
+        st.metric("EBITDA Margin", "-", help="EBITDA dibandingkan pendapatan")
+    with col3:
+        st.metric("Net Profit Margin", "-", help="Laba bersih dibandingkan pendapatan")
