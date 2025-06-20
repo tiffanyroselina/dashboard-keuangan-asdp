@@ -71,8 +71,11 @@ if uploaded_file:
         st.header("📈 Ringkasan Kinerja")
         df_filtered = apply_filter(df_kinerja, tahun, bulan_multi)
         st.dataframe(df_filtered)
-        for col in ['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']:
-            fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan")
+        colors = px.colors.qualitative.Set2
+        for i, col in enumerate(['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']):
+            fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
+                         color_discrete_sequence=[colors[i % len(colors)]])
+            fig.update_layout(height=300, margin=dict(t=30, b=20))
             st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
@@ -86,15 +89,18 @@ if uploaded_file:
 
         st.dataframe(styled_df)
 
-        for col in ['DSCR', 'Current_Ratio', 'DER']:
+        for i, col in enumerate(['DSCR', 'Current_Ratio', 'DER']):
             fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
-                         color='Bulan', text_auto=True)
+                         color='Bulan', color_discrete_sequence=[colors[i % len(colors)]])
+            fig.update_layout(height=300, margin=dict(t=30, b=20))
             st.plotly_chart(fig, use_container_width=True)
 
     with tab3:
         st.header("💰 Cashflow Forecast (2 Minggu)")
         st.dataframe(df_cashflow)
-        fig = px.line(df_cashflow, x='Tanggal', y='Saldo_Akhir', title='Proyeksi Saldo Harian')
+        fig = px.line(df_cashflow, x='Tanggal', y='Saldo_Akhir', title='Proyeksi Saldo Harian',
+                      color_discrete_sequence=['#0077b6'])
+        fig.update_layout(height=300, margin=dict(t=30, b=20))
         st.plotly_chart(fig, use_container_width=True)
 
     with tab4:
@@ -104,8 +110,10 @@ if uploaded_file:
         df_gantt = df_debt.copy()
         df_gantt['Start'] = datetime.today()
         df_gantt['Finish'] = df_gantt['Jatuh_Tempo']
-        fig = px.timeline(df_gantt, x_start="Start", x_end="Finish", y="Nama_Pinjaman", color="Institusi")
+        fig = px.timeline(df_gantt, x_start="Start", x_end="Finish", y="Nama_Pinjaman", color="Institusi",
+                          color_discrete_sequence=colors)
         fig.update_yaxes(autorange="reversed")
+        fig.update_layout(height=400, margin=dict(t=30, b=20))
         st.plotly_chart(fig, use_container_width=True)
 
     with tab5:
