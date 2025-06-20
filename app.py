@@ -22,17 +22,17 @@ def load_data(uploaded_file):
         return None, None, None, None
 
 # ---------- FILTER ----------
-def apply_filter(df, tahun, bulan):
-    return df[(df['Tahun'] == tahun) & (df['Bulan'] == bulan)]
+def apply_filter(df, tahun, bulan_list):
+    return df[(df['Tahun'] == tahun) & (df['Bulan'].isin(bulan_list))]
 
 # ---------- SCORING STRATEGI ----------
 def generate_rekomendasi(kinerja, rasio, cashflow):
     skor = 0
-    if kinerja['Pendapatan'].iloc[0] > 100000: skor += 1
-    if kinerja['Laba_Bersih'].iloc[0] > 10000: skor += 1
-    if rasio['DSCR'].iloc[0] >= 1.2: skor += 1
-    if rasio['Current_Ratio'].iloc[0] >= 1.1: skor += 1
-    if rasio['DER'].iloc[0] <= 1.5: skor += 1
+    if kinerja['Pendapatan'].mean() > 100000: skor += 1
+    if kinerja['Laba_Bersih'].mean() > 10000: skor += 1
+    if rasio['DSCR'].mean() >= 1.2: skor += 1
+    if rasio['Current_Ratio'].mean() >= 1.1: skor += 1
+    if rasio['DER'].mean() <= 1.5: skor += 1
     if cashflow['Saldo_Akhir'].mean() > 0: skor += 1
 
     if skor >= 5:
@@ -53,7 +53,7 @@ if uploaded_file:
     bulan_list = df_kinerja['Bulan'].unique()
 
     tahun = st.sidebar.selectbox("Pilih Tahun", sorted(tahun_list, reverse=True))
-    bulan = st.sidebar.selectbox("Pilih Bulan", bulan_list)
+    bulan_multi = st.sidebar.multiselect("Pilih Bulan", bulan_list, default=bulan_list[:1])
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Ringkasan Kinerja", "Rasio Keuangan", "Cashflow Forecast",
@@ -62,19 +62,19 @@ if uploaded_file:
 
     with tab1:
         st.header("📈 Ringkasan Kinerja")
-        df_filtered = apply_filter(df_kinerja, tahun, bulan)
+        df_filtered = apply_filter(df_kinerja, tahun, bulan_multi)
         st.dataframe(df_filtered)
-        fig = px.bar(df_filtered.melt(id_vars=['Tahun', 'Bulan']),
-                     x='variable', y='value', color='variable',
-                     title="KPI Bulanan")
+        fig = px.bar(df_filtered, x='Bulan', y=['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt'],
+                     barmode='group', title="KPI Bulanan")
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
         st.header("📊 Rasio Keuangan")
-        df_filtered = apply_filter(df_rasio, tahun, bulan)
+        df_filtered = apply_filter(df_rasio, tahun, bulan_multi)
         st.dataframe(df_filtered)
-        fig = px.pie(df_filtered.melt(id_vars=['Tahun', 'Bulan']),
-                     values='value', names='variable', title='Komposisi Rasio')
+        df_melted = df_filtered.melt(id_vars=['Tahun', 'Bulan'], value_vars=['DSCR', 'Current_Ratio', 'DER'])
+        fig = px.bar(df_melted, x='Bulan', y='value', color='variable', barmode='group',
+                     title='Perbandingan Rasio Keuangan')
         st.plotly_chart(fig, use_container_width=True)
 
     with tab3:
@@ -86,8 +86,6 @@ if uploaded_file:
     with tab4:
         st.header("📄 Profil & Jatuh Tempo Hutang")
         st.dataframe(df_debt)
-
-        # Gantt Chart
         df_debt['Jatuh_Tempo'] = pd.to_datetime(df_debt['Jatuh_Tempo'])
         df_gantt = df_debt.copy()
         df_gantt['Start'] = datetime.today()
@@ -98,13 +96,13 @@ if uploaded_file:
 
     with tab5:
         st.header("📌 Rekomendasi Strategi Perusahaan")
-        df_k = apply_filter(df_kinerja, tahun, bulan)
-        df_r = apply_filter(df_rasio, tahun, bulan)
+        df_k = apply_filter(df_kinerja, tahun, bulan_multi)
+        df_r = apply_filter(df_rasio, tahun, bulan_multi)
         rekomendasi = generate_rekomendasi(df_k, df_r, df_cashflow)
         st.success(f"Hasil Analisis: **{rekomendasi}**")
 
     with tab6:
-        st.header("📤 Export Laporan")
+        st.header("📄 Export Laporan")
 
         def convert_df_to_excel(dfs: dict):
             output = BytesIO()
@@ -121,8 +119,8 @@ if uploaded_file:
         })
 
         st.download_button(
-            label="💾 Download Laporan Excel",
+            label="📂 Download Laporan Excel",
             data=excel_data,
-            file_name=f"Laporan_Kinerja_{bulan}_{tahun}.xlsx",
+            file_name=f"Laporan_Kinerja_{'_'.join(bulan_multi)}_{tahun}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
