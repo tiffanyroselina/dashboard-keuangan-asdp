@@ -78,6 +78,7 @@ if uploaded_file:
 
     with tab1:
         st.header("📈 Ringkasan Kinerja")
+        st.caption("*Seluruh nilai dalam Jutaan Rupiah*")
         df_filtered = apply_filter(df_kinerja, tahun, bulan_multi)
         df_display = df_filtered.copy()
         for col in ['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']:
@@ -113,6 +114,7 @@ if uploaded_file:
 
     with tab3:
         st.header("💰 Cashflow Forecast (2 Minggu)")
+        st.caption("*Seluruh nilai dalam Jutaan Rupiah*")
         df_cashflow_fmt = df_cashflow.copy()
         for col in ['Saldo_Awal', 'Pemasukan', 'Pengeluaran', 'Saldo_Akhir']:
             df_cashflow_fmt[col] = df_cashflow_fmt[col].apply(format_number)
@@ -124,6 +126,7 @@ if uploaded_file:
 
     with tab4:
         st.header("📄 Profil & Jatuh Tempo Hutang")
+        st.caption("*Seluruh nilai dalam Jutaan Rupiah*")
         df_display_debt = df_debt.copy()
         df_display_debt['Nilai_Pinjaman'] = df_display_debt['Nilai_Pinjaman'].apply(format_number)
         st.dataframe(df_display_debt)
