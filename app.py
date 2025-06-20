@@ -52,7 +52,10 @@ def highlight_rasio(val, threshold, reverse=False):
 # ---------- FORMAT NUMBER ----------
 def format_number(x):
     if isinstance(x, (int, float)):
-        return f"{x:,.2f}"
+        if x == int(x):
+            return f"{int(x):,}"
+        else:
+            return f"{x:,.2f}"
     return x
 
 # ---------- MAIN ----------
@@ -103,7 +106,7 @@ if uploaded_file:
         for i, col in enumerate(['DSCR', 'Current_Ratio', 'DER']):
             fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
                          color='Bulan', color_discrete_sequence=[colors[i % len(colors)]],
-                         text=df_filtered[col].map(lambda x: f"{x:.2f}"))
+                         text=df_filtered[col].map(lambda x: f"{x:,.2f}"))
             fig.update_layout(height=300, margin=dict(t=30, b=20))
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
