@@ -42,6 +42,13 @@ def generate_rekomendasi(kinerja, rasio, cashflow):
     else:
         return "Strategi Konservatif / Restrukturisasi"
 
+# ---------- HIGHLIGHT CELL ----------
+def highlight_rasio(val, threshold, reverse=False):
+    if reverse:
+        return 'background-color: red' if val > threshold else ''
+    else:
+        return 'background-color: red' if val < threshold else ''
+
 # ---------- MAIN ----------
 st.title("📊 Dashboard Kinerja Keuangan ASDP")
 
@@ -64,18 +71,25 @@ if uploaded_file:
         st.header("📈 Ringkasan Kinerja")
         df_filtered = apply_filter(df_kinerja, tahun, bulan_multi)
         st.dataframe(df_filtered)
-        fig = px.bar(df_filtered, x='Bulan', y=['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt'],
-                     barmode='group', title="KPI Bulanan")
-        st.plotly_chart(fig, use_container_width=True)
+        for col in ['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']:
+            fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan")
+            st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
         st.header("📊 Rasio Keuangan")
         df_filtered = apply_filter(df_rasio, tahun, bulan_multi)
-        st.dataframe(df_filtered)
-        df_melted = df_filtered.melt(id_vars=['Tahun', 'Bulan'], value_vars=['DSCR', 'Current_Ratio', 'DER'])
-        fig = px.bar(df_melted, x='Bulan', y='value', color='variable', barmode='group',
-                     title='Perbandingan Rasio Keuangan')
-        st.plotly_chart(fig, use_container_width=True)
+
+        styled_df = df_filtered.style\
+            .applymap(lambda v: highlight_rasio(v, 1.2), subset=['DSCR'])\
+            .applymap(lambda v: highlight_rasio(v, 1.1), subset=['Current_Ratio'])\
+            .applymap(lambda v: highlight_rasio(v, 1.5, reverse=True), subset=['DER'])
+
+        st.dataframe(styled_df)
+
+        for col in ['DSCR', 'Current_Ratio', 'DER']:
+            fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
+                         color='Bulan', text_auto=True)
+            st.plotly_chart(fig, use_container_width=True)
 
     with tab3:
         st.header("💰 Cashflow Forecast (2 Minggu)")
