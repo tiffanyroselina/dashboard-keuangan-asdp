@@ -49,6 +49,12 @@ def highlight_rasio(val, threshold, reverse=False):
     else:
         return 'background-color: red' if val < threshold else ''
 
+# ---------- FORMAT NUMBER ----------
+def format_number(x):
+    if isinstance(x, (int, float)):
+        return f"{x:,.2f}"
+    return x
+
 # ---------- MAIN ----------
 st.title("📊 Dashboard Kinerja Keuangan ASDP")
 
@@ -70,11 +76,14 @@ if uploaded_file:
     with tab1:
         st.header("📈 Ringkasan Kinerja")
         df_filtered = apply_filter(df_kinerja, tahun, bulan_multi)
-        st.dataframe(df_filtered)
+        df_display = df_filtered.copy()
+        for col in ['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']:
+            df_display[col] = df_display[col].apply(format_number)
+        st.dataframe(df_display)
         colors = px.colors.qualitative.Set2
         for i, col in enumerate(['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']):
             fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
-                         color_discrete_sequence=[colors[i % len(colors)]], text=col)
+                         color_discrete_sequence=[colors[i % len(colors)]], text=df_filtered[col].map(format_number))
             fig.update_layout(height=300, margin=dict(t=30, b=20))
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
@@ -84,6 +93,7 @@ if uploaded_file:
         df_filtered = apply_filter(df_rasio, tahun, bulan_multi)
 
         styled_df = df_filtered.style\
+            .format({"DSCR": "{:.2f}", "Current_Ratio": "{:.2f}", "DER": "{:.2f}"})\
             .applymap(lambda v: highlight_rasio(v, 1.2), subset=['DSCR'])\
             .applymap(lambda v: highlight_rasio(v, 1.1), subset=['Current_Ratio'])\
             .applymap(lambda v: highlight_rasio(v, 1.5, reverse=True), subset=['DER'])
@@ -92,14 +102,18 @@ if uploaded_file:
 
         for i, col in enumerate(['DSCR', 'Current_Ratio', 'DER']):
             fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
-                         color='Bulan', color_discrete_sequence=[colors[i % len(colors)]], text=col)
+                         color='Bulan', color_discrete_sequence=[colors[i % len(colors)]],
+                         text=df_filtered[col].map(lambda x: f"{x:.2f}"))
             fig.update_layout(height=300, margin=dict(t=30, b=20))
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
 
     with tab3:
         st.header("💰 Cashflow Forecast (2 Minggu)")
-        st.dataframe(df_cashflow)
+        df_cashflow_fmt = df_cashflow.copy()
+        for col in ['Saldo_Awal', 'Pemasukan', 'Pengeluaran', 'Saldo_Akhir']:
+            df_cashflow_fmt[col] = df_cashflow_fmt[col].apply(format_number)
+        st.dataframe(df_cashflow_fmt)
         fig = px.line(df_cashflow, x='Tanggal', y='Saldo_Akhir', title='Proyeksi Saldo Harian',
                       color_discrete_sequence=['#0077b6'])
         fig.update_layout(height=300, margin=dict(t=30, b=20))
@@ -107,7 +121,9 @@ if uploaded_file:
 
     with tab4:
         st.header("📄 Profil & Jatuh Tempo Hutang")
-        st.dataframe(df_debt)
+        df_display_debt = df_debt.copy()
+        df_display_debt['Nilai_Pinjaman'] = df_display_debt['Nilai_Pinjaman'].apply(format_number)
+        st.dataframe(df_display_debt)
         df_debt['Jatuh_Tempo'] = pd.to_datetime(df_debt['Jatuh_Tempo'])
         df_gantt = df_debt.copy()
         df_gantt['Start'] = datetime.today()
