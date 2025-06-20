@@ -74,8 +74,9 @@ if uploaded_file:
         colors = px.colors.qualitative.Set2
         for i, col in enumerate(['Pendapatan','EBITDA','Fixed_Cost','Laba_Bersih','Debt']):
             fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
-                         color_discrete_sequence=[colors[i % len(colors)]])
+                         color_discrete_sequence=[colors[i % len(colors)]], text=col)
             fig.update_layout(height=300, margin=dict(t=30, b=20))
+            fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
@@ -91,8 +92,9 @@ if uploaded_file:
 
         for i, col in enumerate(['DSCR', 'Current_Ratio', 'DER']):
             fig = px.bar(df_filtered, x='Bulan', y=col, title=f"Perbandingan {col} per Bulan",
-                         color='Bulan', color_discrete_sequence=[colors[i % len(colors)]])
+                         color='Bulan', color_discrete_sequence=[colors[i % len(colors)]], text=col)
             fig.update_layout(height=300, margin=dict(t=30, b=20))
+            fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
 
     with tab3:
